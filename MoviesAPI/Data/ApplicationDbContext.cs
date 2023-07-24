@@ -9,6 +9,16 @@ namespace MoviesAPI.Data
         {
 
         }
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Movie>()
+                .Property(m => m.Rating)
+                .HasColumnType("decimal(3, 1)"); // Specifies the SQL Server column type as decimal(3, 1)
+
+            // Other configurations for your entities
+
+            base.OnModelCreating(modelBuilder);
+        }
         public DbSet<Movie> Movies { get; set; }
     }
 }
