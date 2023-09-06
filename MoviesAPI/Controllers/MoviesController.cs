@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using MoviesAPI.Data;
 using MoviesAPI.Models;
+using System.Linq.Expressions;
 
 namespace MoviesAPI.Controllers
 {
@@ -16,13 +17,59 @@ namespace MoviesAPI.Controllers
 
         }
         [HttpGet(Name = "Movies")]
-        public async Task<ActionResult<List<Movie>>> Movies()
+        public async Task<ActionResult<IEnumerable<Movie>>> Movies([FromQuery] string? searchTerm, string? sortColumn, string? sortOrder, int pageNumber, int pageSize)
         {
-            var movies = await _dbContext.Movies.ToListAsync();
-            if (movies == null)
-                return NotFound();
-            return Ok(movies);
+
+            // Filtering
+            IQueryable<Movie> moviesQuery = _dbContext.Movies;
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                moviesQuery = moviesQuery.Where(m => m.Title.Contains(searchTerm) || m.Director.Contains(searchTerm));
+            }
+
+            Expression<Func<Movie, object>> keySelector = sortColumn?.ToLower() switch
+            {
+                "title" => movie => movie.Title,
+                "director" => movie => movie.Director,
+                "rating" => movie => movie.Rating,
+                _ => movie => movie.MovieID
+            };
+
+            // Sorting
+            if (sortOrder?.ToLower() == "desc")
+            {
+                moviesQuery = moviesQuery.OrderByDescending(keySelector);
+            }
+            else
+            {
+                moviesQuery = moviesQuery.OrderBy(keySelector);
+            }
+
+            // Projection
+            var moviesResponsesQuery = moviesQuery.Select(m => new MovieResponse
+            {
+                Title = m.Title,
+                Description = m.Description,
+                Rating = m.Rating,
+                Director = m.Director,
+                ReleaseDate = m.ReleaseDate,
+            });
+
+            // Paging at database level
+            var products = await PagedList<MovieResponse>.CreateAsync(moviesResponsesQuery, pageNumber, pageSize);
+            return Ok(products);
+            //var movies = await moviesQuery.Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(m => new MovieResponse
+            //{
+            //    Title = m.Title,
+            //    Description = m.Description,
+            //    Rating = m.Rating,
+            //    Director = m.Director,
+            //    ReleaseDate = m.ReleaseDate,
+            //}).ToListAsync();
+            // return Ok(movies);
         }
+
+
         [HttpGet("{id}")]
         public async Task<ActionResult<Movie>> Movies(int id)
         {
@@ -80,6 +127,7 @@ namespace MoviesAPI.Controllers
 
             return NoContent();
         }
+
 
 
         private bool MovieExists(int id)
